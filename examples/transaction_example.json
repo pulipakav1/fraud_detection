@@ -1,0 +1,11 @@
+{
+  "transaction_id": "txn_test_001",
+  "user_id": "user_12345",
+  "amount": 250.00,
+  "merchant_category": "electronics",
+  "timestamp": "2024-01-15T14:30:00Z",
+  "device_id": "device_789",
+  "latitude": 40.7128,
+  "longitude": -74.0060,
+  "payment_method": "credit"
+}

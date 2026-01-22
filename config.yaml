@@ -1,0 +1,71 @@
+# Fraud Detection System Configuration
+
+data:
+  raw_data_path: "data/raw/transactions.csv"
+  processed_data_path: "data/processed/features.csv"
+  train_test_split: 0.2
+  random_seed: 42
+
+features:
+  # Velocity features
+  velocity_windows:
+    - 1  # hours
+    - 24  # hours
+  
+  # Amount features
+  amount_normalization: "z_score"  # z_score or percentile
+  
+  # Time features
+  time_features:
+    - "hour_of_day"
+    - "day_of_week"
+    - "is_weekend"
+
+models:
+  baseline:
+    name: "logistic_regression"
+    class_weight: "balanced"
+    max_iter: 1000
+    C: 1.0
+  
+  advanced:
+    name: "xgboost"
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    scale_pos_weight: 100  # Handle class imbalance
+    random_state: 42
+
+evaluation:
+  # Cost matrix (in dollars)
+  cost_matrix:
+    false_negative_cost_multiplier: 1.0  # Transaction amount × multiplier
+    false_positive_cost: 5.0  # Fixed cost per false positive
+  
+  # Metrics to compute
+  metrics:
+    - "precision"
+    - "recall"
+    - "f1"
+    - "roc_auc"
+    - "pr_auc"
+    - "cost"
+
+  # Risk buckets
+  risk_thresholds:
+    low: 0.3
+    medium: 0.7
+    high: 1.0
+
+inference:
+  api_host: "0.0.0.0"
+  api_port: 8000
+  model_path: "models/best_model.pkl"
+  model_version: "v1.0"
+
+model_registry:
+  registry_path: "models/"
+  experiment_tracking: true
+  mlflow_uri: "file:./mlruns"
