@@ -1,6 +1,4 @@
 # Simple model registry - tracks model versions and metrics
-# In production you'd use MLflow or similar
-
 import joblib
 import json
 from pathlib import Path
@@ -50,6 +48,7 @@ class ModelRegistry:
         }
         
         self._save_registry()
+        logger.info(f"Registered {model_name} version {version}")
     
     def get_model(self, model_name: str, version: str = "latest") -> Optional[Dict]:
         if model_name not in self.registry:

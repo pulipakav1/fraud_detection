@@ -1,5 +1,4 @@
 # Generate synthetic transaction data for fraud detection
-# In production you'd pull from your actual transaction database
 
 import numpy as np
 import pandas as pd
@@ -238,7 +237,14 @@ def generate_and_save_data(
     
     # Make sure directory exists
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    # Save
     df.to_csv(output_path, index=False)
+    print(f"Generated {len(df):,} transactions")
+    print(f"  Legitimate: {len(df[df['is_fraud']==0]):,}")
+    print(f"  Fraudulent: {len(df[df['is_fraud']==1]):,}")
+    print(f"  Fraud rate: {df['is_fraud'].mean():.2%}")
+    print(f"  Saved to: {output_path}")
     
     return df
 

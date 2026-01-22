@@ -151,7 +151,6 @@ class FeatureEngineer:
     
     def _create_velocity_features(self, df: pd.DataFrame) -> pd.DataFrame:
         # Velocity = how many transactions in last X hours
-        # Only use past data to avoid leakage
         df = df.sort_values(['user_id', 'timestamp']).reset_index(drop=True)
         
         for window_hours in self.velocity_windows:

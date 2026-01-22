@@ -1,6 +1,4 @@
 # Advanced model: XGBoost
-# This is what most fraud systems use in production
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -35,12 +33,21 @@ def train_advanced_model(
     config_path: str = "config.yaml",
     model_save_path: str = "models/advanced_model.pkl"
 ):
+    logger.info("=" * 60)
+    logger.info("Training Advanced Model: XGBoost")
+    logger.info("=" * 60)
+    
     config = load_config(config_path)
     model_config = config.get('models', {}).get('advanced', {})
     eval_config = config.get('evaluation', {})
     
+    logger.info(f"Loading data from {data_path}")
     df = pd.read_csv(data_path)
+    logger.info(f"Loaded {len(df):,} transactions")
+    logger.info(f"Fraud rate: {df['is_fraud'].mean():.2%}")
+    
     feature_cols = get_feature_columns(df)
+    logger.info(f"Using {len(feature_cols)} features")
     
     X = df[feature_cols].fillna(0)
     y = df['is_fraud'].values
@@ -53,9 +60,15 @@ def train_advanced_model(
         stratify=y
     )
     
+    logger.info(f"Train set: {len(X_train):,} samples")
+    logger.info(f"Test set: {len(X_test):,} samples")
+    
+    # Handle class imbalance
     fraud_ratio = (y_train == 0).sum() / (y_train == 1).sum()
     scale_pos_weight = model_config.get('scale_pos_weight', fraud_ratio)
+    logger.info(f"Scale pos weight: {scale_pos_weight:.2f}")
     
+    logger.info("\nTraining XGBoost...")
     model = xgb.XGBClassifier(
         n_estimators=model_config.get('n_estimators', 200),
         max_depth=model_config.get('max_depth', 6),
@@ -74,10 +87,12 @@ def train_advanced_model(
         eval_set=[(X_test, y_test)],
         verbose=False
     )
+    logger.info("Model trained")
     
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
     
+    logger.info("\nEvaluating model...")
     cost_matrix_config = eval_config.get('cost_matrix', {})
     metrics = evaluate_model(
         y_test, y_pred, y_proba, amounts_test,
@@ -92,8 +107,14 @@ def train_advanced_model(
         'model_type': 'xgboost'
     }
     joblib.dump(model_data, model_save_path)
+    logger.info(f"\nModel saved to {model_save_path}")
     
-    logger.info(f"Advanced model - PR-AUC: {metrics['pr_auc']:.4f}, Recall: {metrics['recall']:.4f}")
+    logger.info("\nTop 20 features by importance:")
+    feature_importance = pd.DataFrame({
+        'feature': feature_cols,
+        'importance': model.feature_importances_
+    }).sort_values('importance', ascending=False)
+    print(feature_importance.head(20).to_string(index=False))
     
     return model, metrics
 
