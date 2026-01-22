@@ -1,9 +1,5 @@
-"""
-Cost Matrix Module
-
-Defines business cost structure for fraud detection.
-Helps optimize threshold based on business impact.
-"""
+# Cost matrix for fraud detection
+# False negatives cost way more than false positives
 
 import numpy as np
 import pandas as pd
@@ -13,27 +9,13 @@ import seaborn as sns
 
 
 class CostMatrix:
-    """
-    Cost matrix for fraud detection.
-    
-    Asymmetric costs:
-    - False Negative (missed fraud): High cost (transaction amount + overhead)
-    - False Positive (false alarm): Lower cost (customer friction)
-    """
+    # Cost matrix: FN = transaction amount, FP = fixed cost
     
     def __init__(
         self,
         false_negative_cost_multiplier: float = 1.0,
         false_positive_cost: float = 5.0
     ):
-        """
-        Initialize cost matrix.
-        
-        Args:
-            false_negative_cost_multiplier: Multiplier for transaction amount
-                                           (e.g., 1.0 = full amount)
-            false_positive_cost: Fixed cost per false positive (customer friction)
-        """
         self.fn_multiplier = false_negative_cost_multiplier
         self.fp_cost = false_positive_cost
     
@@ -43,17 +25,6 @@ class CostMatrix:
         y_pred: np.ndarray,
         transaction_amounts: np.ndarray
     ) -> float:
-        """
-        Calculate total cost.
-        
-        Args:
-            y_true: True labels
-            y_pred: Predicted labels
-            transaction_amounts: Transaction amounts
-        
-        Returns:
-            Total cost
-        """
         fn_mask = (y_true == 1) & (y_pred == 0)
         fp_mask = (y_true == 0) & (y_pred == 1)
         
@@ -69,18 +40,6 @@ class CostMatrix:
         transaction_amounts: np.ndarray,
         threshold_range: np.ndarray = None
     ) -> Tuple[float, float]:
-        """
-        Find optimal threshold that minimizes total cost.
-        
-        Args:
-            y_true: True labels
-            y_proba: Predicted probabilities
-            transaction_amounts: Transaction amounts
-            threshold_range: Range of thresholds to test
-        
-        Returns:
-            Tuple of (optimal_threshold, min_cost)
-        """
         if threshold_range is None:
             threshold_range = np.arange(0.1, 0.95, 0.01)
         
@@ -104,16 +63,6 @@ class CostMatrix:
         threshold_range: np.ndarray = None,
         save_path: str = None
     ):
-        """
-        Plot cost vs threshold curve.
-        
-        Args:
-            y_true: True labels
-            y_proba: Predicted probabilities
-            transaction_amounts: Transaction amounts
-            threshold_range: Range of thresholds to test
-            save_path: Path to save plot
-        """
         if threshold_range is None:
             threshold_range = np.arange(0.1, 0.95, 0.01)
         
@@ -138,6 +87,6 @@ class CostMatrix:
         
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"✅ Saved cost curve to {save_path}")
+            print(f"Saved cost curve to {save_path}")
         else:
             plt.show()

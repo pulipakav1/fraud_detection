@@ -1,9 +1,4 @@
-"""
-Data Validation Module
-
-Validates transaction data quality and detects anomalies.
-Prevents data quality issues from propagating through the pipeline.
-"""
+# Data validation - check data quality before training
 
 import pandas as pd
 import numpy as np
@@ -15,30 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class DataValidator:
-    """
-    Validates transaction data for quality and consistency.
-    
-    Checks:
-    - Missing values
-    - Data types
-    - Value ranges
-    - Temporal consistency
-    - Business logic constraints
-    """
+    # Validates transaction data
     
     def __init__(self):
         self.validation_results = {}
     
     def validate(self, df: pd.DataFrame) -> Tuple[bool, Dict]:
-        """
-        Run all validation checks.
-        
-        Args:
-            df: Transaction dataframe
-        
-        Returns:
-            Tuple of (is_valid, validation_results)
-        """
         results = {}
         
         # Check required columns
@@ -69,7 +46,6 @@ class DataValidator:
         return is_valid, results
     
     def _check_required_columns(self, df: pd.DataFrame) -> Dict:
-        """Check that all required columns are present."""
         required = [
             'transaction_id', 'user_id', 'timestamp', 'amount',
             'merchant_category', 'device_id', 'latitude', 'longitude',
@@ -85,17 +61,14 @@ class DataValidator:
         return {'status': 'pass'}
     
     def _check_data_types(self, df: pd.DataFrame) -> Dict:
-        """Check data types are correct."""
         issues = []
         
-        # Convert timestamp if it's a string
         if 'timestamp' in df.columns:
             try:
                 pd.to_datetime(df['timestamp'])
             except:
                 issues.append("timestamp cannot be converted to datetime")
         
-        # Check numeric columns
         numeric_cols = ['amount', 'latitude', 'longitude']
         for col in numeric_cols:
             if col in df.columns:
@@ -109,11 +82,10 @@ class DataValidator:
         return {'status': 'pass'}
     
     def _check_missing_values(self, df: pd.DataFrame) -> Dict:
-        """Check for missing values."""
         missing = df.isnull().sum()
         missing_pct = (missing / len(df)) * 100
         
-        critical_missing = missing_pct[missing_pct > 5]  # >5% missing is critical
+        critical_missing = missing_pct[missing_pct > 5]
         
         if len(critical_missing) > 0:
             logger.warning(f"High missing value rates: {critical_missing.to_dict()}")
@@ -133,22 +105,18 @@ class DataValidator:
         return {'status': 'pass'}
     
     def _check_value_ranges(self, df: pd.DataFrame) -> Dict:
-        """Check values are within expected ranges."""
         issues = []
         
-        # Amount should be positive
         if 'amount' in df.columns:
             if (df['amount'] <= 0).any():
                 issues.append("Some amounts are <= 0")
             if (df['amount'] > 50000).any():
                 issues.append("Some amounts exceed $50,000 (unusual)")
         
-        # Latitude should be between -90 and 90
         if 'latitude' in df.columns:
             if ((df['latitude'] < -90) | (df['latitude'] > 90)).any():
                 issues.append("Latitude out of valid range [-90, 90]")
         
-        # Longitude should be between -180 and 180
         if 'longitude' in df.columns:
             if ((df['longitude'] < -180) | (df['longitude'] > 180)).any():
                 issues.append("Longitude out of valid range [-180, 180]")
@@ -160,17 +128,14 @@ class DataValidator:
         return {'status': 'pass'}
     
     def _check_temporal_consistency(self, df: pd.DataFrame) -> Dict:
-        """Check temporal consistency."""
         issues = []
         
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             
-            # Check for future dates
             if (df['timestamp'] > pd.Timestamp.now()).any():
                 issues.append("Some timestamps are in the future")
             
-            # Check for very old dates (before 2000)
             if (df['timestamp'] < pd.Timestamp('2000-01-01')).any():
                 issues.append("Some timestamps are very old (< 2000)")
         
@@ -181,15 +146,12 @@ class DataValidator:
         return {'status': 'pass'}
     
     def _check_business_logic(self, df: pd.DataFrame) -> Dict:
-        """Check business logic constraints."""
         issues = []
         
-        # Transaction IDs should be unique
         if 'transaction_id' in df.columns:
             if df['transaction_id'].duplicated().any():
                 issues.append("Duplicate transaction IDs found")
         
-        # Valid merchant categories
         if 'merchant_category' in df.columns:
             valid_categories = [
                 "groceries", "gas", "restaurant", "retail", "online",
@@ -199,7 +161,6 @@ class DataValidator:
             if len(invalid) > 0:
                 issues.append(f"Invalid merchant categories: {invalid['merchant_category'].unique().tolist()}")
         
-        # Valid payment methods
         if 'payment_method' in df.columns:
             valid_methods = ['credit', 'debit', 'digital_wallet']
             invalid = df[~df['payment_method'].isin(valid_methods)]
@@ -212,51 +173,20 @@ class DataValidator:
         
         return {'status': 'pass'}
     
-    def get_report(self) -> str:
-        """Generate a human-readable validation report."""
-        report = ["=" * 60]
-        report.append("DATA VALIDATION REPORT")
-        report.append("=" * 60)
-        
-        for check_name, result in self.validation_results.items():
-            status = result.get('status', 'unknown')
-            status_symbol = "✅" if status == 'pass' else "⚠️" if status == 'warn' else "❌"
-            
-            report.append(f"\n{status_symbol} {check_name.upper()}: {status}")
-            
-            if status != 'pass':
-                for key, value in result.items():
-                    if key != 'status':
-                        report.append(f"   - {key}: {value}")
-        
-        report.append("\n" + "=" * 60)
-        
-        overall_status = "PASS" if all(
-            r.get('status') == 'pass' 
-            for r in self.validation_results.values()
-        ) else "FAIL"
-        report.append(f"OVERALL STATUS: {overall_status}")
-        report.append("=" * 60)
-        
-        return "\n".join(report)
-
-
 def validate_data_file(file_path: str) -> Tuple[bool, Dict]:
-    """
-    Validate a data file.
-    
-    Args:
-        file_path: Path to CSV file
-    
-    Returns:
-        Tuple of (is_valid, validation_results)
-    """
-    logger.info(f"Loading data from {file_path}")
     df = pd.read_csv(file_path)
     
     validator = DataValidator()
     is_valid, results = validator.validate(df)
     
-    print(validator.get_report())
+    if is_valid:
+        logger.info("Data validation passed")
+    else:
+        # Only show issues if validation failed
+        for check_name, result in results.items():
+            if result.get('status') != 'pass':
+                issues = result.get('issues', [])
+                if issues:
+                    logger.warning(f"Validation issue in {check_name}: {issues}")
     
     return is_valid, results

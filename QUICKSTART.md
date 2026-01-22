@@ -1,56 +1,53 @@
-# Quick Start Guide
+# Quick Start
 
-## 🚀 Getting Started
+## Setup
 
-### 1. Install Dependencies
-
+Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Run the Complete Pipeline
+## Run Everything
 
-Train both baseline and advanced models:
-
+Train both models:
 ```bash
 python train_pipeline.py
 ```
 
 This will:
-- Generate synthetic transaction data
-- Validate data quality
-- Engineer features (transaction, velocity, geographic, device)
-- Train baseline model (Logistic Regression)
-- Train advanced model (XGBoost)
-- Register models in the model registry
-- Display evaluation metrics
+1. Generate synthetic transaction data (100k transactions)
+2. Validate the data
+3. Engineer features
+4. Train baseline model (Logistic Regression)
+5. Train advanced model (XGBoost)
+6. Register models and show metrics
 
-### 3. Start the Inference API
+## Start the API
 
 ```bash
-python -m src.inference.api
+python inference_api.py
 ```
 
-The API will start on `http://localhost:8000`
+API runs on `http://localhost:8000`
 
-### 4. Test the API
+## Test the API
 
-**Using curl:**
+Using curl:
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d @examples/transaction_example.json
 ```
 
-**Using Python:**
+Or Python:
 ```python
 import requests
 
-transaction = {
+txn = {
     "transaction_id": "txn_test_001",
     "user_id": "user_12345",
     "amount": 250.00,
-    "merchant_category": "electronics",
+    "merchant_category": "retail",
     "timestamp": "2024-01-15T14:30:00Z",
     "device_id": "device_789",
     "latitude": 40.7128,
@@ -58,96 +55,46 @@ transaction = {
     "payment_method": "credit"
 }
 
-response = requests.post("http://localhost:8000/predict", json=transaction)
+response = requests.post("http://localhost:8000/predict", json=txn)
 print(response.json())
 ```
 
-**Expected Response:**
-```json
-{
-    "fraud_probability": 0.1234,
-    "risk_level": "LOW",
-    "recommended_action": "ALLOW",
-    "model_version": "v1.0"
-}
-```
+## API Endpoints
 
-## 📊 API Endpoints
-
-- `GET /` - API information
+- `GET /` - API info
 - `GET /health` - Health check
-- `POST /predict` - Fraud prediction
-- `GET /model/info` - Model information and metrics
+- `POST /predict` - Get fraud prediction
+- `GET /model/info` - Model metrics
 
-## 🔍 Understanding the Output
+## Understanding the Output
 
-### Risk Levels
+**Risk Levels:**
+- LOW (< 0.3): Transaction allowed
+- MEDIUM (0.3-0.7): Step-up verification needed
+- HIGH (≥ 0.7): Block transaction
 
-- **LOW** (probability < 0.3): Transaction allowed
-- **MEDIUM** (0.3 ≤ probability < 0.7): Step-up verification required (2FA, SMS)
-- **HIGH** (probability ≥ 0.7): Transaction blocked
+**Actions:**
+- ALLOW: Process normally
+- STEP_UP_VERIFICATION: Require 2FA/SMS
+- BLOCK: Reject transaction
 
-### Recommended Actions
+## Customization
 
-- **ALLOW**: Process transaction normally
-- **STEP_UP_VERIFICATION**: Require additional authentication
-- **BLOCK**: Reject transaction
+Edit `config.yaml` to change:
+- Cost matrix (FN/FP costs)
+- Risk thresholds
+- Model hyperparameters
+- API port/host
 
-## 📈 Model Performance
+## Troubleshooting
 
-After training, you'll see metrics like:
+**Model not found?**
+- Run `python train_pipeline.py` first
 
-- **Precision**: Minimize false positives
-- **Recall**: Catch as many fraud cases as possible
-- **F1-Score**: Balanced metric
-- **ROC-AUC**: Overall discrimination
-- **PR-AUC**: ⭐ Best for imbalanced fraud data
-- **Total Cost**: Business cost using cost matrix
+**Import errors?**
+- Make sure you're in the project root
+- Install dependencies: `pip install -r requirements.txt`
 
-## 🛠️ Customization
-
-### Adjust Cost Matrix
-
-Edit `config.yaml`:
-```yaml
-evaluation:
-  cost_matrix:
-    false_negative_cost_multiplier: 1.0  # Transaction amount × multiplier
-    false_positive_cost: 5.0  # Fixed cost per false positive
-```
-
-### Adjust Risk Thresholds
-
-Edit `config.yaml`:
-```yaml
-evaluation:
-  risk_thresholds:
-    low: 0.3
-    medium: 0.7
-    high: 1.0
-```
-
-### Change Model Parameters
-
-Edit `config.yaml` under `models.baseline` or `models.advanced`
-
-## 📝 Next Steps
-
-1. **Explore the code**: Check out `src/` directory for implementation details
-2. **Modify features**: Add new features in `src/features/engineering.py`
-3. **Experiment with models**: Try different algorithms or hyperparameters
-4. **Add monitoring**: Implement model drift detection
-5. **Scale up**: Deploy to production with proper infrastructure
-
-## 🐛 Troubleshooting
-
-**Model not found error:**
-- Run `python train_pipeline.py` first to train models
-
-**Import errors:**
-- Make sure you're in the project root directory
-- Install all dependencies: `pip install -r requirements.txt`
-
-**API won't start:**
+**API won't start?**
 - Check if port 8000 is available
-- Modify port in `config.yaml` if needed
+- Change port in `config.yaml` if needed

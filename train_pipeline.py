@@ -1,26 +1,16 @@
-"""
-End-to-End Training Pipeline
+# End-to-end training pipeline
+# Runs data generation, validation, feature engineering, model training, and evaluation
 
-Runs the complete ML pipeline:
-1. Data generation
-2. Data validation
-3. Feature engineering
-4. Model training (baseline + advanced)
-5. Model evaluation
-6. Model registration
-"""
-
-import sys
 from pathlib import Path
 import logging
 import yaml
 
-from src.data.ingestion import generate_and_save_data
-from src.data.validation import validate_data_file
-from src.features.engineering import engineer_features
-from src.models.baseline import train_baseline_model
-from src.models.advanced import train_advanced_model
-from src.models.registry import ModelRegistry
+from data_ingestion import generate_and_save_data
+from data_validation import validate_data_file
+from feature_engineering import engineer_features
+from baseline_model import train_baseline_model
+from advanced_model import train_advanced_model
+from model_registry import ModelRegistry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,87 +20,64 @@ logger = logging.getLogger(__name__)
 
 
 def run_pipeline(config_path: str = "config.yaml"):
-    """
-    Run the complete ML pipeline.
+    logger.info("Starting fraud detection pipeline...")
     
-    Args:
-        config_path: Path to configuration file
-    """
-    logger.info("=" * 60)
-    logger.info("FRAUD DETECTION ML PIPELINE")
-    logger.info("=" * 60)
-    
-    # Load config
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     
-    # Step 1: Generate data
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 1: DATA GENERATION")
-    logger.info("=" * 60)
+    # Generate data
     raw_data_path = config.get('data', {}).get('raw_data_path', 'data/raw/transactions.csv')
     
-    if not Path(raw_data_path).exists():
-        logger.info("Generating synthetic transaction data...")
-        generate_and_save_data(
-            output_path=raw_data_path,
-            n_transactions=100000,
-            config_path=config_path
-        )
-    else:
-        logger.info(f"Raw data already exists at {raw_data_path}, skipping generation")
+    if Path(raw_data_path).exists():
+        try:
+            Path(raw_data_path).unlink()
+        except Exception as e:
+            logger.warning(f"Could not delete existing file: {e}")
     
-    # Step 2: Validate data
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 2: DATA VALIDATION")
-    logger.info("=" * 60)
+    logger.info("Generating transaction data...")
+    generate_and_save_data(
+        output_path=raw_data_path,
+        n_transactions=100000,
+        config_path=config_path
+    )
+    
+    # Validate data
+    logger.info("Validating data...")
     is_valid, validation_results = validate_data_file(raw_data_path)
     
     if not is_valid:
-        logger.error("Data validation failed. Please check the data.")
+        logger.error("Data validation failed")
         return
     
-    # Step 3: Feature engineering
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 3: FEATURE ENGINEERING")
-    logger.info("=" * 60)
+    # Feature engineering
     processed_data_path = config.get('data', {}).get('processed_data_path', 'data/processed/features.csv')
     
     if not Path(processed_data_path).exists():
-        logger.info("Engineering features...")
+        logger.info("Creating features...")
         engineer_features(
             input_path=raw_data_path,
             output_path=processed_data_path,
             config_path=config_path,
             is_training=True
         )
-    else:
-        logger.info(f"Processed data already exists at {processed_data_path}, skipping feature engineering")
     
-    # Step 4: Train baseline model
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 4: TRAIN BASELINE MODEL")
-    logger.info("=" * 60)
+    # Train baseline
+    logger.info("Training baseline model...")
     baseline_model, baseline_scaler, baseline_metrics = train_baseline_model(
         data_path=processed_data_path,
         config_path=config_path,
         model_save_path="models/baseline_model.pkl"
     )
     
-    # Step 5: Train advanced model
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 5: TRAIN ADVANCED MODEL")
-    logger.info("=" * 60)
+    # Train advanced
+    logger.info("Training advanced model...")
     advanced_model, advanced_metrics = train_advanced_model(
         data_path=processed_data_path,
         config_path=config_path,
         model_save_path="models/advanced_model.pkl"
     )
     
-    # Step 6: Register models
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 6: MODEL REGISTRY")
-    logger.info("=" * 60)
+    # Register models
     registry = ModelRegistry(registry_path="models/")
     
     registry.register_model(
@@ -129,18 +96,11 @@ def run_pipeline(config_path: str = "config.yaml"):
         metadata={"model_type": "xgboost"}
     )
     
-    # Get best model
     best_model = registry.get_best_model(metric="pr_auc")
     if best_model:
-        logger.info(f"\n🏆 Best Model: {best_model['model_name']} v{best_model['version']}")
-        logger.info(f"   PR-AUC: {best_model['metrics']['pr_auc']:.4f}")
+        logger.info(f"Best model: {best_model['model_name']} (PR-AUC: {best_model['metrics']['pr_auc']:.4f})")
     
-    logger.info("\n" + "=" * 60)
-    logger.info("✅ PIPELINE COMPLETE")
-    logger.info("=" * 60)
-    logger.info("\nNext steps:")
-    logger.info("1. Start inference API: python -m src.inference.api")
-    logger.info("2. Test API: curl -X POST http://localhost:8000/predict -H 'Content-Type: application/json' -d @examples/transaction_example.json")
+    logger.info("Pipeline complete")
 
 
 if __name__ == "__main__":

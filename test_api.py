@@ -1,17 +1,11 @@
-"""
-Simple test script for the Fraud Detection API
-
-Tests the API endpoints to ensure everything works correctly.
-"""
+# Test script for the fraud detection API
 
 import requests
 import json
-import time
 from pathlib import Path
 
 
 def test_api():
-    """Test the fraud detection API."""
     base_url = "http://localhost:8000"
     
     print("=" * 60)
@@ -23,17 +17,17 @@ def test_api():
     try:
         response = requests.get(f"{base_url}/health", timeout=5)
         if response.status_code == 200:
-            print("   ✅ Health check passed")
+            print("   [PASS] Health check passed")
             print(f"   Response: {response.json()}")
         else:
-            print(f"   ❌ Health check failed: {response.status_code}")
+            print(f"   [FAIL] Health check failed: {response.status_code}")
             return
     except requests.exceptions.ConnectionError:
-        print("   ❌ Cannot connect to API. Is it running?")
-        print("   Start it with: python -m src.inference.api")
+        print("   [FAIL] Cannot connect to API. Is it running?")
+        print("   Start it with: python inference_api.py")
         return
     except Exception as e:
-        print(f"   ❌ Error: {e}")
+        print(f"   [FAIL] Error: {e}")
         return
     
     # Test 2: Root endpoint
@@ -41,19 +35,19 @@ def test_api():
     try:
         response = requests.get(f"{base_url}/", timeout=5)
         if response.status_code == 200:
-            print("   ✅ Root endpoint works")
+            print("   [PASS] Root endpoint works")
             print(f"   Response: {json.dumps(response.json(), indent=2)}")
         else:
-            print(f"   ❌ Root endpoint failed: {response.status_code}")
+            print(f"   [FAIL] Root endpoint failed: {response.status_code}")
     except Exception as e:
-        print(f"   ❌ Error: {e}")
+        print(f"   [FAIL] Error: {e}")
     
     # Test 3: Model info
     print("\n3. Testing model info endpoint...")
     try:
         response = requests.get(f"{base_url}/model/info", timeout=5)
         if response.status_code == 200:
-            print("   ✅ Model info retrieved")
+            print("   [PASS] Model info retrieved")
             info = response.json()
             print(f"   Model loaded: {info.get('model_loaded')}")
             print(f"   Feature count: {info.get('feature_count')}")
@@ -61,9 +55,9 @@ def test_api():
                 metrics = info['metrics']
                 print(f"   PR-AUC: {metrics.get('pr_auc', 'N/A'):.4f}")
         else:
-            print(f"   ⚠️  Model info failed: {response.status_code}")
+            print(f"   [WARN] Model info failed: {response.status_code}")
     except Exception as e:
-        print(f"   ⚠️  Error: {e}")
+        print(f"   [WARN] Error: {e}")
     
     # Test 4: Prediction - Low risk transaction
     print("\n4. Testing prediction - Low risk transaction...")
@@ -87,16 +81,16 @@ def test_api():
         )
         if response.status_code == 200:
             result = response.json()
-            print("   ✅ Prediction successful")
+            print("   [PASS] Prediction successful")
             print(f"   Fraud Probability: {result['fraud_probability']:.4f}")
             print(f"   Risk Level: {result['risk_level']}")
             print(f"   Recommended Action: {result['recommended_action']}")
             print(f"   Model Version: {result['model_version']}")
         else:
-            print(f"   ❌ Prediction failed: {response.status_code}")
+            print(f"   [FAIL] Prediction failed: {response.status_code}")
             print(f"   Response: {response.text}")
     except Exception as e:
-        print(f"   ❌ Error: {e}")
+        print(f"   [FAIL] Error: {e}")
     
     # Test 5: Prediction - High risk transaction
     print("\n5. Testing prediction - High risk transaction...")
@@ -105,9 +99,9 @@ def test_api():
         "user_id": "user_99999",
         "amount": 5000.00,
         "merchant_category": "online",
-        "timestamp": "2024-01-15T02:30:00Z",  # Late night
-        "device_id": "device_new_12345",  # New device
-        "latitude": 50.0,  # Far from typical location
+        "timestamp": "2024-01-15T02:30:00Z",
+        "device_id": "device_new_12345",
+        "latitude": 50.0,
         "longitude": -100.0,
         "payment_method": "credit"
     }
@@ -120,22 +114,22 @@ def test_api():
         )
         if response.status_code == 200:
             result = response.json()
-            print("   ✅ Prediction successful")
+            print("   [PASS] Prediction successful")
             print(f"   Fraud Probability: {result['fraud_probability']:.4f}")
             print(f"   Risk Level: {result['risk_level']}")
             print(f"   Recommended Action: {result['recommended_action']}")
         else:
-            print(f"   ❌ Prediction failed: {response.status_code}")
+            print(f"   [FAIL] Prediction failed: {response.status_code}")
             print(f"   Response: {response.text}")
     except Exception as e:
-        print(f"   ❌ Error: {e}")
+        print(f"   [FAIL] Error: {e}")
     
     # Test 6: Invalid request
     print("\n6. Testing error handling - Invalid request...")
     invalid_transaction = {
         "transaction_id": "txn_invalid",
         "user_id": "user_123",
-        "amount": -10.0,  # Invalid: negative amount
+        "amount": -10.0,
         "merchant_category": "groceries",
         "timestamp": "2024-01-15T14:30:00Z",
         "device_id": "device_789",
@@ -150,12 +144,12 @@ def test_api():
             json=invalid_transaction,
             timeout=10
         )
-        if response.status_code == 422:  # Validation error
-            print("   ✅ Error handling works (validation error caught)")
+        if response.status_code == 422:
+            print("   [PASS] Error handling works (validation error caught)")
         else:
-            print(f"   ⚠️  Unexpected status: {response.status_code}")
+            print(f"   [WARN] Unexpected status: {response.status_code}")
     except Exception as e:
-        print(f"   ⚠️  Error: {e}")
+        print(f"   [WARN] Error: {e}")
     
     print("\n" + "=" * 60)
     print("TESTING COMPLETE")

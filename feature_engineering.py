@@ -1,18 +1,8 @@
-"""
-Feature Engineering Module
-
-Creates features for fraud detection while preventing data leakage.
-Ensures train/inference parity.
-
-Key principles:
-1. No look-ahead bias (only use past data)
-2. Train/inference parity (same features in both)
-3. Handle missing values gracefully
-"""
+# Feature engineering - create features from raw transaction data
+# Important: only use past data to avoid leakage
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional
 from datetime import timedelta
 import logging
 from pathlib import Path
@@ -23,17 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 class FeatureEngineer:
-    """
-    Feature engineering for fraud detection.
-    
-    Feature categories:
-    1. Transaction-based: amount, time, merchant
-    2. Behavioral/Velocity: transaction frequency, amount patterns
-    3. Geographic/Device: location, device patterns
-    """
+    # Creates features: transaction, velocity, geographic, device
     
     def __init__(self, config_path: str = "config.yaml"):
-        """Initialize with configuration."""
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         
@@ -45,23 +27,15 @@ class FeatureEngineer:
         self.is_training = True
     
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Fit feature engineering on training data and transform.
-        
-        Args:
-            df: Raw transaction dataframe
-        
-        Returns:
-            Dataframe with engineered features
-        """
+        # Fit on training data
         self.is_training = True
         df = df.copy()
         
-        # Sort by timestamp to ensure proper temporal ordering
+        # Sort by time - needed for velocity features
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values('timestamp').reset_index(drop=True)
         
-        # Compute feature statistics from training data
+        # Compute stats for inference
         self._compute_feature_stats(df)
         
         # Create features
@@ -70,7 +44,7 @@ class FeatureEngineer:
         df = self._create_geographic_features(df)
         df = self._create_device_features(df)
         
-        # Store feature columns for inference
+        # Remember which columns are features
         exclude = [
             'transaction_id', 'user_id', 'timestamp', 'is_fraud',
             'merchant_category', 'device_id', 'latitude', 'longitude',
@@ -83,23 +57,14 @@ class FeatureEngineer:
         return df
     
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Transform new data using pre-computed statistics.
-        
-        Args:
-            df: Raw transaction dataframe
-        
-        Returns:
-            Dataframe with engineered features
-        """
+        # Transform new data
         self.is_training = False
         df = df.copy()
         
-        # Sort by timestamp
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df = df.sort_values('timestamp').reset_index(drop=True)
         
-        # Create features using stored statistics
+        # Use stored stats to create features
         df = self._create_transaction_features(df)
         df = self._create_velocity_features(df)
         df = self._create_geographic_features(df)
@@ -108,14 +73,12 @@ class FeatureEngineer:
         return df
     
     def _compute_feature_stats(self, df: pd.DataFrame):
-        """Compute statistics needed for feature engineering (training only)."""
-        # User-level statistics for normalization
+        # Compute stats we need for feature engineering
         user_stats = df.groupby('user_id').agg({
             'amount': ['mean', 'std', 'count']
         }).reset_index()
         user_stats.columns = ['user_id', 'user_amount_mean', 'user_amount_std', 'user_txn_count']
         
-        # Global statistics
         self.feature_stats = {
             'user_amount_mean': user_stats.set_index('user_id')['user_amount_mean'].to_dict(),
             'user_amount_std': user_stats.set_index('user_id')['user_amount_std'].to_dict(),
@@ -125,8 +88,8 @@ class FeatureEngineer:
             'user_devices': self._compute_user_device_baselines(df)
         }
     
-    def _compute_user_location_baselines(self, df: pd.DataFrame) -> Dict:
-        """Compute typical location for each user."""
+    def _compute_user_location_baselines(self, df: pd.DataFrame):
+        # Where does each user usually transact?
         user_locations = {}
         for user_id in df['user_id'].unique():
             user_df = df[df['user_id'] == user_id]
@@ -139,8 +102,8 @@ class FeatureEngineer:
                 }
         return user_locations
     
-    def _compute_user_device_baselines(self, df: pd.DataFrame) -> Dict:
-        """Compute typical devices for each user."""
+    def _compute_user_device_baselines(self, df: pd.DataFrame):
+        # What devices has each user used?
         user_devices = {}
         for user_id in df['user_id'].unique():
             user_df = df[df['user_id'] == user_id]
@@ -149,9 +112,6 @@ class FeatureEngineer:
         return user_devices
     
     def _create_transaction_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create transaction-based features."""
-        logger.info("Creating transaction features...")
-        
         # Time features
         df['hour_of_day'] = df['timestamp'].dt.hour
         df['day_of_week'] = df['timestamp'].dt.dayofweek
@@ -162,13 +122,13 @@ class FeatureEngineer:
         df['amount_log'] = np.log1p(df['amount'])
         df['amount_squared'] = df['amount'] ** 2
         
-        # Amount normalization (using pre-computed stats to prevent leakage)
+        # Normalize amount by user history
         if self.is_training:
             user_means = df.groupby('user_id')['amount'].transform('mean')
             user_stds = df.groupby('user_id')['amount'].transform('std')
             user_stds = user_stds.replace(0, self.feature_stats['global_amount_std'])
         else:
-            # Use stored statistics
+            # Use stored stats
             user_means = df['user_id'].map(
                 self.feature_stats['user_amount_mean']
             ).fillna(self.feature_stats['global_amount_mean'])
@@ -180,25 +140,18 @@ class FeatureEngineer:
         df['amount_z_score'] = (df['amount'] - user_means) / user_stds
         df['amount_deviation_from_user_mean'] = df['amount'] - user_means
         
-        # Merchant category encoding
+        # One-hot encode merchant and payment method
         merchant_dummies = pd.get_dummies(df['merchant_category'], prefix='merchant')
         df = pd.concat([df, merchant_dummies], axis=1)
         
-        # Payment method encoding
         payment_dummies = pd.get_dummies(df['payment_method'], prefix='payment')
         df = pd.concat([df, payment_dummies], axis=1)
         
         return df
     
     def _create_velocity_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Create velocity features (transaction frequency).
-        
-        CRITICAL: Only uses past data to prevent leakage.
-        """
-        logger.info("Creating velocity features...")
-        
-        # Sort by timestamp to ensure temporal order
+        # Velocity = how many transactions in last X hours
+        # Only use past data to avoid leakage
         df = df.sort_values(['user_id', 'timestamp']).reset_index(drop=True)
         
         for window_hours in self.velocity_windows:
@@ -206,7 +159,7 @@ class FeatureEngineer:
             df[window_name] = 0
             df[f"amount_sum_{window_hours}h"] = 0.0
             
-            # Compute velocity for each user
+            # For each user, count transactions in time window
             for user_id in df['user_id'].unique():
                 user_mask = df['user_id'] == user_id
                 user_indices = df[user_mask].index
@@ -217,12 +170,12 @@ class FeatureEngineer:
                     current_time = user_timestamps[i]
                     window_start = current_time - timedelta(hours=window_hours)
                     
-                    # Count transactions in window (only past transactions)
+                    # Only count past transactions
                     past_mask = (user_timestamps >= window_start) & (user_timestamps < current_time)
                     df.loc[idx, window_name] = past_mask.sum()
                     df.loc[idx, f"amount_sum_{window_hours}h"] = user_amounts[past_mask].sum()
         
-        # Average transaction amount in window
+        # Average amount per transaction in window
         for window_hours in self.velocity_windows:
             window_name = f"velocity_{window_hours}h"
             amount_sum_name = f"amount_sum_{window_hours}h"
@@ -237,13 +190,9 @@ class FeatureEngineer:
         return df
     
     def _create_geographic_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create geographic features."""
-        logger.info("Creating geographic features...")
-        
-        # Haversine distance function
+        # Calculate distance between two lat/lon points
         def haversine_distance(lat1, lon1, lat2, lon2):
-            """Calculate distance between two points in km."""
-            R = 6371  # Earth radius in km
+            R = 6371  # km
             dlat = np.radians(lat2 - lat1)
             dlon = np.radians(lon2 - lon1)
             a = (np.sin(dlat/2)**2 + 
@@ -252,7 +201,6 @@ class FeatureEngineer:
             c = 2 * np.arcsin(np.sqrt(a))
             return R * c
         
-        # Distance from user's typical location
         df['distance_from_user_baseline'] = 0.0
         
         for idx, row in df.iterrows():
@@ -261,7 +209,7 @@ class FeatureEngineer:
             current_lon = row['longitude']
             
             if self.is_training:
-                # Compute baseline from past transactions only
+                # Use past transactions to compute baseline
                 past_df = df[(df['user_id'] == user_id) & (df.index < idx)]
                 if len(past_df) > 0:
                     baseline_lat = past_df['latitude'].mean()
@@ -271,7 +219,7 @@ class FeatureEngineer:
                         baseline_lat, baseline_lon
                     )
                 else:
-                    distance = 0.0  # New user
+                    distance = 0.0  # new user
             else:
                 # Use stored baseline
                 if user_id in self.feature_stats['user_locations']:
@@ -281,20 +229,16 @@ class FeatureEngineer:
                         baseline['lat_mean'], baseline['lon_mean']
                     )
                 else:
-                    distance = 0.0  # New user
+                    distance = 0.0  # new user
             
             df.loc[idx, 'distance_from_user_baseline'] = distance
         
-        # Flag unusual distances (>100km from baseline)
+        # Flag if >100km from usual location
         df['is_unusual_location'] = (df['distance_from_user_baseline'] > 100).astype(int)
         
         return df
     
     def _create_device_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create device-based features."""
-        logger.info("Creating device features...")
-        
-        # New device indicator
         df['is_new_device'] = 0
         
         for idx, row in df.iterrows():
@@ -302,25 +246,24 @@ class FeatureEngineer:
             device_id = row['device_id']
             
             if self.is_training:
-                # Check if device was used before (only past transactions)
+                # Check if this device was used before
                 past_df = df[(df['user_id'] == user_id) & (df.index < idx)]
                 if len(past_df) > 0:
                     is_new = device_id not in past_df['device_id'].values
                 else:
-                    is_new = True  # First transaction
+                    is_new = True  # first transaction
             else:
-                # Use stored device set
+                # Use stored device list
                 if user_id in self.feature_stats['user_devices']:
                     is_new = device_id not in self.feature_stats['user_devices'][user_id]
                 else:
-                    is_new = True  # New user
+                    is_new = True  # new user
             
             df.loc[idx, 'is_new_device'] = int(is_new)
         
         return df
     
-    def get_feature_list(self) -> List[str]:
-        """Get list of feature columns (excluding target and metadata)."""
+    def get_feature_list(self):
         return self.feature_stats.get('feature_columns', [])
 
 
@@ -329,20 +272,7 @@ def engineer_features(
     output_path: str,
     config_path: str = "config.yaml",
     is_training: bool = True
-) -> pd.DataFrame:
-    """
-    Main function to engineer features from raw data.
-    
-    Args:
-        input_path: Path to raw transaction CSV
-        output_path: Path to save engineered features CSV
-        config_path: Path to config file
-        is_training: Whether this is training data
-    
-    Returns:
-        DataFrame with engineered features
-    """
-    logger.info(f"Loading data from {input_path}")
+):
     df = pd.read_csv(input_path)
     
     engineer = FeatureEngineer(config_path=config_path)
@@ -350,16 +280,10 @@ def engineer_features(
     if is_training:
         df_features = engineer.fit_transform(df)
     else:
-        # Load feature stats from training
-        # In production, this would be loaded from model registry
         df_features = engineer.transform(df)
     
-    # Save
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     df_features.to_csv(output_path, index=False)
-    logger.info(f"✅ Saved engineered features to {output_path}")
-    logger.info(f"   - Total features: {len(df_features.columns)}")
-    logger.info(f"   - Rows: {len(df_features):,}")
     
     return df_features
 

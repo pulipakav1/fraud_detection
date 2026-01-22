@@ -1,164 +1,121 @@
-# End-to-End Fraud Detection ML System
+# Fraud Detection ML System
 
-## 🎯 Business Framing
+End-to-end machine learning system for detecting fraudulent financial transactions in real-time.
 
-### Business Problem
+## Business Context
 
-Financial transactions are vulnerable to fraud, causing:
-- **Direct financial loss**: Unauthorized transactions result in immediate monetary damage
-- **Customer dissatisfaction**: Fraud incidents erode trust and customer experience
-- **Regulatory risk**: Non-compliance with fraud prevention standards can lead to penalties
+Fraud detection is critical for financial systems. The main challenges:
+- Direct financial losses from unauthorized transactions
+- Customer trust issues when fraud happens
+- Regulatory compliance requirements
 
-### Business Objectives
+Our goal: detect fraud in near real-time while minimizing false positives (we don't want to block legitimate customers).
 
-The goal is to detect fraudulent transactions in **near real-time** while:
-- **Minimizing false positives**: Blocking legitimate users creates friction and lost revenue
-- **Catching high-risk fraud early**: Early detection prevents cascading losses
+Key insight: **A missed fraud costs way more than a false alarm.** This drives our cost-aware evaluation approach.
 
-### 💡 Key Insight: Fraud is Asymmetric
-
-**A missed fraud costs far more than a false alarm.**
-
-This asymmetry drives our evaluation strategy:
-- False Negative (missed fraud) = High cost (transaction amount + operational overhead)
-- False Positive (false alarm) = Lower cost (customer friction, potential revenue loss)
-
-## 🏗️ System Architecture
+## System Overview
 
 ```
-Transaction Events
-      ↓
-Data Validation
-      ↓
-Feature Engineering
-      ↓
-Model Training (Baseline → Advanced)
-      ↓
-Evaluation (Cost-Aware Metrics)
-      ↓
-Model Registry
-      ↓
-Inference API (Real-Time)
+Transaction Events → Data Validation → Feature Engineering → 
+Model Training → Evaluation → Model Registry → Inference API
 ```
 
-### Future Enhancements
-- Batch scoring pipeline
-- Model monitoring and drift detection
-- Automated retraining pipeline
-- A/B testing framework
+Still need to add: batch scoring, monitoring, and retraining pipelines (coming later).
 
-## 📊 Data Understanding
+## Data
 
-### Data Types (Typical Fraud Signals)
+We work with typical transaction data:
+- Transaction amount, timestamp, merchant category
+- Device and location info
+- User behavior patterns (velocity features)
+- Account history
 
-1. **Transaction-based**
-   - Transaction amount
-   - Transaction time (timestamp)
-   - Merchant category
-   - Payment method
+Main challenges:
+- **Class imbalance**: Fraud is rare (<1% typically)
+- **Concept drift**: Fraud patterns change over time
+- **Label delay**: We only know fraud happened days/weeks later
+- **Data leakage**: Have to be super careful with temporal features
 
-2. **Behavioral / Velocity**
-   - Transactions per time window (1h, 24h)
-   - Amount deviation from user baseline
-   - Transaction frequency patterns
+## Features
 
-3. **Geographic / Device**
-   - Location mismatch
-   - New device indicator
-   - IP address anomalies
+We engineer three main feature types:
 
-### ⚠️ Key Challenges
-
-1. **Severe class imbalance**: Fraud cases are rare (typically <1% of transactions)
-2. **Concept drift**: Fraud patterns evolve over time
-3. **Label delay**: Fraud confirmation happens days/weeks after transaction
-4. **Data leakage risks**: Must prevent look-ahead bias in feature engineering
-
-## 🔧 Feature Engineering
-
-### Feature Categories
-
-#### Transaction-based Features
-- Amount normalized by user history
-- Time-of-day / day-of-week encoding
+**Transaction features:**
+- Amount normalized by user's typical spending
+- Time features (hour of day, day of week)
 - Merchant category encoding
 
-#### Behavioral / Velocity Features
-- Transactions in last 1h / 24h
+**Velocity features:**
+- Transaction count in last 1h and 24h windows
 - Amount deviation from user baseline (z-score)
-- Transaction frequency patterns
+- Frequency patterns
 
-#### Geographic / Device Features
-- Location mismatch (distance from user's typical location)
-- New device indicator
-- IP address risk score
+**Geographic/Device:**
+- Distance from user's typical location
+- New device flag
+- Location anomaly detection
 
-### Critical Requirements
-- ✅ Feature computation logic explained
-- ✅ Prevention of look-ahead leakage
-- ✅ Train/inference parity
+Important: All features are computed to prevent look-ahead bias. We only use past data when computing features.
 
-## 🤖 Modeling Strategy
+## Models
 
-### Baseline Model
-- **Logistic Regression** with class weights
-- Provides interpretability and baseline performance
-- Often kept as fallback in production systems
+**Baseline: Logistic Regression**
+- Simple, interpretable
+- Good baseline to compare against
+- Often kept as fallback in production
 
-### Advanced Model
-- **XGBoost / LightGBM** (industry standard for fraud detection)
-- Handles non-linear patterns and feature interactions
-- Provides feature importance for explainability
+**Advanced: XGBoost**
+- Industry standard for fraud detection
+- Handles non-linear patterns well
+- Still provides feature importance
 
-### Why This Matters
-- Shows understanding of interpretability vs. power tradeoff
-- Fraud teams often keep logistic regression as fallback
-- Demonstrates model selection reasoning
+Why both? Shows we understand the tradeoff between interpretability and performance. Plus fraud teams usually want a simple model as backup.
 
-## 📈 Evaluation Framework
+## Evaluation
 
-### Metrics to Report
-- **Precision**: Minimize false positives
-- **Recall**: Catch as many fraud cases as possible
-- **F1-Score**: Balanced metric
-- **ROC-AUC**: Overall model discrimination
-- **Precision-Recall AUC** ⭐ (fraud favorite - handles imbalance better)
+We track standard metrics:
+- Precision, Recall, F1
+- ROC-AUC
+- **PR-AUC** (this is the one that matters for imbalanced fraud data)
 
-### Business Metric (Required)
-**Cost Matrix**:
-- False Negative Cost = Transaction Amount + Operational Overhead
-- False Positive Cost = Customer Friction Cost (estimated)
+But the real metric is **business cost**:
+- False Negative cost = transaction amount (we lost money)
+- False Positive cost = customer friction (~$5 per false alarm)
 
-**Total Cost = (FN × FN_Cost) + (FP × FP_Cost)**
+Total cost = (FN × transaction_amount) + (FP × $5)
 
-## 🎚️ Threshold Tuning & Risk Buckets
+This is what we optimize for in production.
 
-Instead of binary output, we use **risk buckets**:
+## Risk Buckets
 
-- **Low Risk** (0-0.3): Allow transaction
-- **Medium Risk** (0.3-0.7): Step-up verification (2FA, SMS)
-- **High Risk** (0.7-1.0): Block transaction
+Instead of just "fraud" or "not fraud", we use risk levels:
 
-This mimics real fraud systems and provides operational flexibility.
+- **Low (0-0.3)**: Allow transaction
+- **Medium (0.3-0.7)**: Step-up verification (2FA, SMS)
+- **High (0.7-1.0)**: Block transaction
 
-## 🚀 Inference API
+This gives operations teams flexibility in how they handle different risk levels.
 
-### API Contract
+## API
 
-**Input**: Transaction payload
+Real-time inference via FastAPI.
+
+**Request:**
 ```json
 {
   "transaction_id": "txn_123",
   "user_id": "user_456",
   "amount": 150.00,
-  "merchant_category": "electronics",
+  "merchant_category": "retail",
   "timestamp": "2024-01-15T10:30:00Z",
   "device_id": "device_789",
-  "location": {"lat": 40.7128, "lon": -74.0060}
+  "latitude": 40.7128,
+  "longitude": -74.0060,
+  "payment_method": "credit"
 }
 ```
 
-**Output**:
+**Response:**
 ```json
 {
   "fraud_probability": 0.91,
@@ -168,82 +125,53 @@ This mimics real fraud systems and provides operational flexibility.
 }
 ```
 
-## 📁 Project Structure
+## Setup
 
-```
-fraud_detection/
-├── README.md
-├── requirements.txt
-├── config.yaml
-├── data/
-│   ├── raw/
-│   └── processed/
-├── src/
-│   ├── data/
-│   │   ├── __init__.py
-│   │   ├── ingestion.py
-│   │   └── validation.py
-│   ├── features/
-│   │   ├── __init__.py
-│   │   └── engineering.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── baseline.py
-│   │   ├── advanced.py
-│   │   └── registry.py
-│   ├── evaluation/
-│   │   ├── __init__.py
-│   │   ├── metrics.py
-│   │   └── cost_matrix.py
-│   ├── inference/
-│   │   ├── __init__.py
-│   │   └── api.py
-│   └── utils/
-│       ├── __init__.py
-│       └── helpers.py
-├── notebooks/
-│   └── exploration.ipynb
-├── models/
-│   └── .gitkeep
-└── tests/
-    └── __init__.py
-```
-
-## 🚀 Quick Start
-
-1. **Install dependencies**:
+1. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. **Generate synthetic data**:
+2. Run the full pipeline:
 ```bash
-python src/data/ingestion.py
+python train_pipeline.py
 ```
 
-3. **Train models**:
+3. Start the API:
 ```bash
-python -m src.models.baseline
-python -m src.models.advanced
+python inference_api.py
 ```
 
-4. **Start inference API**:
-```bash
-python -m src.inference.api
-```
-
-5. **Test API**:
+4. Test it:
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d @examples/transaction_example.json
 ```
 
-## 📝 Notes
+## Project Structure
 
-This is a production-grade ML system demonstrating:
-- End-to-end ML pipeline design
-- Cost-aware evaluation
-- Real-time inference
-- Risk-based decision making
-- Industry best practices
+```
+fraud_detection/
+├── data_ingestion.py      # Generate synthetic transaction data
+├── data_validation.py     # Validate data quality
+├── feature_engineering.py  # Create features
+├── baseline_model.py      # Logistic Regression model
+├── advanced_model.py      # XGBoost model
+├── model_registry.py      # Model versioning
+├── evaluation_metrics.py  # Evaluation metrics
+├── cost_matrix.py        # Cost-aware evaluation
+├── inference_api.py       # FastAPI server
+├── helpers.py            # Helper functions
+├── train_pipeline.py      # Main training script
+├── config.yaml           # Configuration
+├── data/                 # Raw and processed data
+└── models/               # Trained model files
+```
+
+## Notes
+
+- This is a production-ready system that could be deployed as-is
+- The cost-aware evaluation is what makes this different from academic projects
+- Feature engineering prevents data leakage (critical for real systems)
+- Risk buckets instead of binary classification matches how real fraud systems work

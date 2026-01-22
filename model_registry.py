@@ -1,9 +1,5 @@
-"""
-Model Registry Module
-
-Manages model versions and metadata.
-In production, this would integrate with MLflow or similar.
-"""
+# Simple model registry - tracks model versions and metrics
+# In production you'd use MLflow or similar
 
 import joblib
 import json
@@ -17,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ModelRegistry:
-    """Simple model registry for managing model versions."""
+    # Simple model registry
     
     def __init__(self, registry_path: str = "models/"):
         self.registry_path = Path(registry_path)
@@ -26,14 +22,12 @@ class ModelRegistry:
         self.registry = self._load_registry()
     
     def _load_registry(self) -> Dict:
-        """Load registry from file."""
         if self.registry_file.exists():
             with open(self.registry_file, 'r') as f:
                 return json.load(f)
         return {}
     
     def _save_registry(self):
-        """Save registry to file."""
         with open(self.registry_file, 'w') as f:
             json.dump(self.registry, f, indent=2)
     
@@ -45,16 +39,6 @@ class ModelRegistry:
         metrics: Dict,
         metadata: Dict = None
     ):
-        """
-        Register a model version.
-        
-        Args:
-            model_name: Name of the model (e.g., 'baseline', 'advanced')
-            model_path: Path to saved model file
-            version: Version string (e.g., 'v1.0')
-            metrics: Model evaluation metrics
-            metadata: Additional metadata
-        """
         if model_name not in self.registry:
             self.registry[model_name] = {}
         
@@ -66,19 +50,8 @@ class ModelRegistry:
         }
         
         self._save_registry()
-        logger.info(f"✅ Registered {model_name} version {version}")
     
     def get_model(self, model_name: str, version: str = "latest") -> Optional[Dict]:
-        """
-        Get model information.
-        
-        Args:
-            model_name: Name of the model
-            version: Version string or 'latest'
-        
-        Returns:
-            Model information dictionary
-        """
         if model_name not in self.registry:
             return None
         
@@ -86,7 +59,7 @@ class ModelRegistry:
             versions = list(self.registry[model_name].keys())
             if not versions:
                 return None
-            version = max(versions)  # Simple: use lexicographically latest
+            version = max(versions)
         
         if version not in self.registry[model_name]:
             return None
@@ -94,16 +67,6 @@ class ModelRegistry:
         return self.registry[model_name][version]
     
     def load_model(self, model_name: str, version: str = "latest"):
-        """
-        Load a registered model.
-        
-        Args:
-            model_name: Name of the model
-            version: Version string or 'latest'
-        
-        Returns:
-            Loaded model data
-        """
         model_info = self.get_model(model_name, version)
         if model_info is None:
             raise ValueError(f"Model {model_name} version {version} not found")
@@ -115,19 +78,9 @@ class ModelRegistry:
         return joblib.load(model_path)
     
     def list_models(self) -> Dict:
-        """List all registered models."""
         return self.registry
     
     def get_best_model(self, metric: str = "pr_auc") -> Optional[Dict]:
-        """
-        Get best model based on a metric.
-        
-        Args:
-            metric: Metric name to optimize
-        
-        Returns:
-            Best model information
-        """
         best_score = -1
         best_model = None
         

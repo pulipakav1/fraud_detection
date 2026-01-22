@@ -29,6 +29,9 @@ data/processed/*.csv
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
+# Old src folder (duplicate - ignore it)
+src/
+
 # Models
 models/*.pkl
 models/*.joblib
